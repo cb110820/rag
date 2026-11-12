@@ -1,0 +1,76 @@
+[project]
+name = "deepagents-rag"
+version = "0.1.0"
+description = "DeepAgents supervisor with a delegated hybrid-RAG subagent"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "anyio>=4.8",
+  "beautifulsoup4>=4.12",
+  "dashscope>=1.27",
+  "deepagents>=0.7,<1",
+  "fastapi>=0.115",
+  "langchain>=1.0",
+  "langchain-openai>=1.0",
+  "langmem>=0.0.30",
+  "numpy>=1.26",
+  "pydantic-settings>=2.7",
+  "pypdf>=5.1",
+  "pyyaml>=6.0",
+  "python-docx>=1.1",
+  "python-multipart>=0.0.32",
+  "rank-bm25>=0.2.2",
+  "tenacity>=9.0",
+  "uvicorn[standard]>=0.34",
+]
+
+[project.optional-dependencies]
+rag = [
+  "faiss-cpu>=1.9",
+  "FlagEmbedding>=1.3",
+]
+eval = [
+  # Ragas 0.4.3 imports a module removed by langchain-community 0.4.x.
+  "ragas>=0.3.9,<0.4",
+]
+dev = [
+  "langgraph-cli[inmem]>=0.4",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "respx>=0.22",
+  "ruff>=0.9",
+]
+postgres = [
+    "langgraph-checkpoint-postgres>=3.0",
+    "psycopg[binary]>=3.3",
+]
+desktop = [
+  "PySide6>=6.7",
+  "httpx>=0.27",
+  "keyring>=25",
+  "Markdown>=3.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+name = "tuna"

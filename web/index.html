@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wiki + RAG 知识助手</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head>
+<body>
+  <!-- 登录层 -->
+  <div id="auth-layer" class="auth-layer">
+    <div class="auth-box">
+      <h2>登录</h2>
+      <input id="auth-email" type="email" placeholder="邮箱" />
+      <input id="auth-password" type="password" placeholder="密码" />
+      <button id="auth-login-btn">登录</button>
+      <p id="auth-msg" class="auth-msg"></p>
+    </div>
+  </div>
+
+  <!-- 主应用 -->
+  <div id="app" class="app hidden">
+    <nav class="navbar">
+      <div class="nav-brand">📚 Wiki + RAG</div>
+      <div class="nav-tabs">
+        <button class="nav-tab active" data-view="chat">💬 对话</button>
+        <button class="nav-tab" data-view="wiki">📖 Wiki</button>
+        <button class="nav-tab" data-view="knowledge">📁 知识库</button>
+        <button class="nav-tab hidden" data-view="admin" id="nav-tab-admin">🛠️ 管理</button>
+      </div>
+      <div class="nav-user">
+        <span id="user-email"></span>
+        <button id="logout-btn">退出</button>
+      </div>
+    </nav>
+
+    <main class="main">
+      <!-- 对话视图 -->
+      <section id="view-chat" class="view">
+        <div class="chat-layout">
+          <aside class="chat-sidebar">
+            <button id="thread-new-btn" class="btn-primary thread-new">+ 新对话</button>
+            <ul id="thread-list" class="thread-list"></ul>
+          </aside>
+          <div class="chat-container">
+            <div id="chat-messages" class="chat-messages">
+              <div class="chat-welcome" id="chat-welcome">
+                <h3>👋 开始一个新对话</h3>
+                <p>点击左侧「+ 新对话」，或选择历史会话继续提问。</p>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <input id="chat-input" type="text" placeholder="输入问题，回车发送..." disabled />
+              <button id="chat-send" disabled>发送</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Wiki 视图 -->
+      <section id="view-wiki" class="view hidden">
+        <div class="wiki-layout">
+          <aside class="wiki-sidebar">
+            <div class="wiki-sidebar-head">
+              <h3>Wiki 页面</h3>
+              <span class="wiki-head-actions">
+                <button id="wiki-import-btn" class="btn-secondary">导入</button>
+                <button id="wiki-new-btn" class="btn-primary">+ 新建</button>
+              </span>
+              <input id="wiki-import-file" type="file" accept=".txt,.md,.html,.htm,.pdf,.docx" class="hidden" />
+            </div>
+            <div class="wiki-search-box">
+              <input id="wiki-search-input" type="search" placeholder="🔍 搜索标题或正文..." />
+            </div>
+            <ul id="wiki-list" class="wiki-list"></ul>
+          </aside>
+          <div class="wiki-editor">
+            <div id="wiki-editor-empty" class="wiki-empty">
+              选择左侧页面查看或编辑，或点击「新建」创建页面
+            </div>
+            <div id="wiki-editor-form" class="hidden">
+              <div id="wiki-contradiction-banner" class="wiki-contradiction-banner hidden"></div>
+              <div id="wiki-index-nav" class="wiki-index-nav hidden"></div>
+              <div id="wiki-log-view" class="wiki-log-view hidden"></div>
+              <div class="form-row">
+                <label>Slug（URL 标识，小写字母数字连字符）</label>
+                <input id="wiki-slug" type="text" placeholder="my-page" />
+              </div>
+              <div class="form-row">
+                <label>标题</label>
+                <input id="wiki-title" type="text" placeholder="页面标题" />
+              </div>
+              <div class="form-row">
+                <div class="content-label-row">
+                  <label>内容（Markdown）</label>
+                  <div class="mode-switch">
+                    <button type="button" class="mode-btn active" data-mode="split">分屏</button>
+                    <button type="button" class="mode-btn" data-mode="edit">仅编辑</button>
+                    <button type="button" class="mode-btn" data-mode="preview">仅预览</button>
+                  </div>
+                </div>
+                <div id="wiki-content-wrap" class="wiki-content-wrap mode-split">
+                  <div class="md-editor-pane">
+                    <div class="md-toolbar" id="md-toolbar"></div>
+                    <textarea id="wiki-content" rows="20" placeholder="# 标题&#10;&#10;正文内容..."></textarea>
+                  </div>
+                  <div id="wiki-preview" class="wiki-preview markdown-body"></div>
+                </div>
+              </div>
+              <div class="form-row">
+                <label>变更说明（可选）</label>
+                <input id="wiki-summary" type="text" placeholder="本次修改摘要" />
+              </div>
+              <div class="wiki-actions">
+                <button id="wiki-save-btn" class="btn-primary">保存</button>
+                <button id="wiki-delete-btn" class="btn-danger">删除页面</button>
+                <button id="wiki-history-btn" class="btn-secondary">版本历史</button>
+              </div>
+              <div id="wiki-history" class="wiki-history hidden"></div>
+              <div id="wiki-attachments" class="wiki-attachments hidden">
+                <div class="wiki-attachments-head">
+                  <h4>附件</h4>
+                  <button id="wiki-attachment-btn" class="btn-secondary">上传附件</button>
+                  <input id="wiki-attachment-file" type="file" class="hidden" />
+                </div>
+                <ul id="wiki-attachment-list" class="wiki-attachment-list"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 知识库视图 -->
+      <section id="view-knowledge" class="view hidden">
+        <div class="kb-container">
+          <div class="kb-upload">
+            <h3>上传文档</h3>
+            <div id="kb-drop" class="kb-drop">
+              <p>拖拽文件到此处，或</p>
+              <input id="kb-file" type="file" multiple accept=".txt,.md,.html,.htm,.pdf,.docx" />
+              <label for="kb-file" class="btn-primary">选择文件</label>
+            </div>
+            <div id="kb-upload-msg"></div>
+          </div>
+          <div class="kb-files">
+            <h3>知识库文件</h3>
+            <ul id="kb-file-list" class="kb-file-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 管理视图（仅平台管理员可见） -->
+      <section id="view-admin" class="view hidden">
+        <div class="kb-container">
+          <div class="kb-upload">
+            <h3>上传全局技能（zip 技能包，对所有租户生效）</h3>
+            <div class="kb-drop">
+              <p>技能包需包含 SKILL.md（YAML frontmatter：name + description）</p>
+              <input id="admin-skill-file" type="file" accept=".zip" />
+              <label for="admin-skill-file" class="btn-primary">选择 zip</label>
+              <label class="admin-overwrite-row">
+                <input id="admin-skill-overwrite" type="checkbox" /> 覆盖同名技能
+              </label>
+              <button id="admin-skill-upload-btn" class="btn-primary" disabled>上传</button>
+            </div>
+            <div id="admin-skill-msg"></div>
+            <div id="admin-skill-validate"></div>
+          </div>
+          <div class="kb-files">
+            <h3>全局技能（上传后下一轮对话自动加载到模型）</h3>
+            <ul id="admin-skill-list" class="kb-file-list"></ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

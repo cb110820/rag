@@ -1,0 +1,239 @@
+[
+  {
+    "id": "cross_session_paraphrase",
+    "description": "跨会话：事实保存后，用改写过的问法仍能召回到原事实",
+    "steps": [
+      {
+        "op": "save",
+        "user": "alice",
+        "category": "identity",
+        "text": "我在团队里负责数据治理平台的运维与权限管理",
+        "as": "role_fact"
+      },
+      {
+        "op": "recall",
+        "user": "alice",
+        "query": "数据治理平台是谁在管？",
+        "expect_contains": "数据治理平台"
+      }
+    ]
+  },
+  {
+    "id": "cross_user_isolation",
+    "description": "多租户：A 的事实绝不能出现在 B 的召回结果中",
+    "steps": [
+      {
+        "op": "save",
+        "user": "alice",
+        "category": "project",
+        "text": "Aurora 项目的生产数据库地址只对内网开放"
+      },
+      {
+        "op": "save",
+        "user": "bob",
+        "category": "preference",
+        "text": "我习惯用分步骤加示例代码的方式讲解技术问题"
+      },
+      {
+        "op": "recall",
+        "user": "alice",
+        "query": "Aurora 项目数据库",
+        "expect_contains": "Aurora"
+      },
+      {
+        "op": "recall",
+        "user": "bob",
+        "query": "Aurora 项目数据库",
+        "must_not_contain": "Aurora",
+        "expect_hit": false
+      }
+    ]
+  },
+  {
+    "id": "explicit_forgetting",
+    "description": "显式遗忘：forget 后同用户再召回必须为空",
+    "steps": [
+      {
+        "op": "save",
+        "user": "carol",
+        "category": "decision",
+        "text": "旧的接口限流阈值每秒一百次已经废弃",
+        "as": "stale"
+      },
+      {
+        "op": "recall",
+        "user": "carol",
+        "query": "接口限流阈值",
+        "expect_contains": "限流"
+      },
+      {
+        "op": "forget",
+        "user": "carol",
+        "ref": "stale"
+      },
+      {
+        "op": "recall",
+        "user": "carol",
+        "query": "接口限流阈值",
+        "expect_hit": false
+      }
+    ]
+  },
+  {
+    "id": "semantic_dedup",
+    "description": "语义去重：相同事实保存两次建立取代链，active 只留新版本",
+    "steps": [
+      {
+        "op": "save",
+        "user": "dave",
+        "category": "general",
+        "text": "每周例会改到周三下午四点召开",
+        "as": "first"
+      },
+      {
+        "op": "save",
+        "user": "dave",
+        "category": "decision",
+        "text": "每周例会改到周三下午四点召开",
+        "expect_action": "superseded"
+      },
+      {
+        "op": "assert_count",
+        "user": "dave",
+        "count": 2
+      },
+      {
+        "op": "assert_active_count",
+        "user": "dave",
+        "count": 1
+      },
+      {
+        "op": "recall",
+        "user": "dave",
+        "query": "例会什么时候开",
+        "expect_contains": ["周三下午四点", "已取代旧版本"]
+      }
+    ]
+  },
+  {
+    "id": "secret_guard",
+    "description": "凭据护栏：疑似密钥的内容不得写入事实记忆",
+    "steps": [
+      {
+        "op": "save",
+        "user": "erin",
+        "text": "请记住我的 aws 密钥 AKIAIOSFODNN7EXAMPLE",
+        "expect_reject": "credential"
+      },
+      {
+        "op": "assert_count",
+        "user": "erin",
+        "count": 0
+      }
+    ]
+  },
+  {
+    "id": "ttl_expiry",
+    "description": "TTL：带过期时间的条目在 sweep 后物理消失",
+    "steps": [
+      {
+        "op": "save_ttl_minutes",
+        "user": "frank",
+        "text": "临时排查结论：只在故障窗口内有效",
+        "ttl_minutes": 0.05,
+        "as": "temp"
+      },
+      {
+        "op": "sleep_seconds",
+        "seconds": 4
+      },
+      {
+        "op": "sweep"
+      },
+      {
+        "op": "assert_ref_exists",
+        "user": "frank",
+        "ref": "temp",
+        "exists": false
+      }
+    ]
+  },
+  {
+    "id": "relevant_fact_ranked",
+    "description": "多事实场景：查询命中相关条目而不被无关条目干扰",
+    "steps": [
+      {
+        "op": "save",
+        "user": "grace",
+        "category": "preference",
+        "text": "咖啡只喝美式，不加糖不加奶"
+      },
+      {
+        "op": "save",
+        "user": "grace",
+        "category": "project",
+        "text": "支付网关迁移的截止时间定在六月底"
+      },
+      {
+        "op": "recall",
+        "user": "grace",
+        "query": "支付网关什么时候迁移",
+        "expect_contains": "六月底",
+        "must_not_contain": "咖啡"
+      }
+    ]
+  },
+  {
+    "id": "supersede_chain",
+    "description": "取代链：事实变更后旧版本软失效不进召回，删除新版本后 active 配额释放",
+    "steps": [
+      {
+        "op": "save",
+        "user": "henry",
+        "category": "project",
+        "text": "我负责的模块是支付网关",
+        "as": "v1"
+      },
+      {
+        "op": "save",
+        "user": "henry",
+        "category": "project",
+        "text": "我负责的模块是支付网关",
+        "as": "v2",
+        "expect_action": "superseded"
+      },
+      {
+        "op": "assert_count",
+        "user": "henry",
+        "count": 2
+      },
+      {
+        "op": "assert_active_count",
+        "user": "henry",
+        "count": 1
+      },
+      {
+        "op": "recall",
+        "user": "henry",
+        "query": "我负责什么模块",
+        "expect_contains": "支付网关",
+        "must_not_contain": "superseded"
+      },
+      {
+        "op": "forget",
+        "user": "henry",
+        "ref": "v2"
+      },
+      {
+        "op": "assert_active_count",
+        "user": "henry",
+        "count": 0
+      },
+      {
+        "op": "assert_count",
+        "user": "henry",
+        "count": 1
+      }
+    ]
+  }
+]

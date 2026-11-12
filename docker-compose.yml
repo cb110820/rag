@@ -1,0 +1,52 @@
+# 生产持久化依赖：PostgreSQL 16 + pgvector
+# 必须使用 pgvector 官方镜像（裸 postgres:16 无法 CREATE EXTENSION vector，
+# 语义记忆阶段 P2 会用到该扩展；saver/store 本身不依赖扩展）。
+#
+# 本地启动：docker compose up -d
+# 对应连接串：postgresql://rag:rag@localhost:5432/rag
+# 生产部署请通过环境变量覆盖 POSTGRES_PASSWORD，并启用 TLS。
+#
+# 备份/PITR：
+# - 逻辑备份（日常误删恢复）：python scripts/backup_postgres.py
+# - 物理基准备份：python scripts/backup_postgres.py --mode base
+# - 恢复指引：python scripts/restore_postgres.py --pitr-guide
+# 本 compose 已开启 archive_mode 并把 WAL 归档到独立卷 rag_wal_archive，
+# 基础备份 + 连续 WAL 归档共同构成时间点恢复（PITR）能力。
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: rag
+    # 启动前确保归档目录归属 postgres 用户，再以 PITR 所需参数拉起数据库
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        mkdir -p /var/lib/postgresql/wal_archive
+        chown postgres:postgres /var/lib/postgresql/wal_archive
+        exec docker-entrypoint.sh postgres
+          -c wal_level=replica
+          -c archive_mode=on
+          -c archive_timeout=300s
+          -c "archive_command=test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f"
+    ports:
+      - "5432:5432"
+    volumes:
+      - rag_pgdata:/var/lib/postgresql/data
+      - rag_wal_archive:/var/lib/postgresql/wal_archive
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  rag_pgdata:
+  # PITR 归档卷：备份/迁移时必须与数据卷分开保存，建议定期同步到对象存储
+  rag_wal_archive:

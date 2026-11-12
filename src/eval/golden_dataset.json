@@ -1,0 +1,13 @@
+[
+  {
+    "question": "退款申请需要在购买后多少天内提出？",
+    "reference": "退款申请需要在购买后 30 天内提出。",
+    "source_ids": ["policies.md"]
+  },
+  {
+    "question": "生产环境允许使用 LocalShellBackend 吗？",
+    "reference": "不允许，生产环境应使用 StateBackend 或 CompositeBackend。",
+    "source_ids": ["architecture.md"]
+  }
+]
+
