@@ -2,9 +2,9 @@
 # 必须使用 pgvector 官方镜像（裸 postgres:16 无法 CREATE EXTENSION vector，
 # 语义记忆阶段 P2 会用到该扩展；saver/store 本身不依赖扩展）。
 #
-# 本地启动：docker compose up -d
-# 对应连接串：postgresql://rag:rag@localhost:5432/rag
-# 生产部署请通过环境变量覆盖 POSTGRES_PASSWORD，并启用 TLS。
+# 本地启动：先在 .env 中设置 POSTGRES_PASSWORD（参考 .env.example），再 docker compose up -d
+# 对应连接串：postgresql://rag:<POSTGRES_PASSWORD>@localhost:5432/rag
+# POSTGRES_PASSWORD 未设置或为空时 compose 直接拒绝启动；生产环境务必使用强口令并启用 TLS。
 #
 # 备份/PITR：
 # - 逻辑备份（日常误删恢复）：python scripts/backup_postgres.py
@@ -20,7 +20,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: rag
-      POSTGRES_PASSWORD: rag
+      # 强制环境注入：未设置或为空时 compose 报错退出（:? 语义），杜绝弱口令默认值上生产
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, set it in .env (see .env.example)}"
       POSTGRES_DB: rag
     # 启动前确保归档目录归属 postgres 用户，再以 PITR 所需参数拉起数据库
     command:
